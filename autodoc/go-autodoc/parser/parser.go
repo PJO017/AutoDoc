@@ -3,6 +3,7 @@ package parser
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -40,9 +41,13 @@ func CallJavaParser(javaSrcDir string) (string, error) {
 }
 
 // Parse runs the Java parser on `srcDir`, then unmarshals the JSON into an IR.
-func Parse(srcDir string) (*IR, error) {
-	// 1) Invoke the Java JAR (existing) :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
-	jsonStr, err := CallJavaParser(srcDir)
+func ParseWithLang(srcDir string, lang string) (*IR, error) {
+	// 1) Invoke the Java JAR (existing)
+	parser, err := GetParser(lang)
+	if err != nil {
+		return nil, err
+	}
+	jsonStr, err := parser(srcDir)
 	if err != nil {
 		return nil, err
 	}
@@ -54,4 +59,17 @@ func Parse(srcDir string) (*IR, error) {
 	}
 
 	return &ir, nil
+}
+
+func GetParser(lang string) (func(string) (string, error), error) {
+	switch lang {
+	case "java":
+		return CallJavaParser, nil
+	case "kotlin":
+		return nil, nil
+	case "python":
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unsupported language: %s", lang)
+	}
 }
