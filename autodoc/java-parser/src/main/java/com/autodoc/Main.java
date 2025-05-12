@@ -12,7 +12,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
 
-public class AutoDocParser {
+public class Main {
 
     public static class MethodInfo {
         String name;
