@@ -11,15 +11,15 @@ import (
 func main() {
 	// Parsing the arguments for Java file path
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: go-autodoc <java-source-file> <output-dir>")
+		fmt.Println("Usage: go-autodoc <java-source-dir> <output-dir>")
 		os.Exit(1)
 	}
 
-	javaFile := os.Args[1]
+	javaSrcDir := os.Args[1]
 	outputDir := os.Args[2]
 
 	// Call the Java tool to parse the Java file
-	classInfoJSON, err := parser.CallJavaParser(javaFile)
+	classInfoJSON, err := parser.CallJavaParser(javaSrcDir)
 	if err != nil {
 		log.Fatalf("Error calling Java parser: %v", err)
 	}

@@ -7,9 +7,9 @@ import (
 )
 
 // CallJavaParser runs the Java program and returns the JSON output
-func CallJavaParser(javaFile string) (string, error) {
+func CallJavaParser(javaSrcDir string) (string, error) {
 	// Command to run the Java tool
-	cmd := exec.Command("java", "-cp", "../java-parser/target/autodoc-parser-1.0-SNAPSHOT.jar", "com.autodoc.AutoDocParser", javaFile)
+	cmd := exec.Command("java", "-cp", "../java-parser/target/autodoc-parser-1.0-SNAPSHOT.jar", "com.autodoc.AutodocApplication", javaSrcDir)
 
 	// Capture the output from the Java tool
 	var out bytes.Buffer
