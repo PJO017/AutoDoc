@@ -1,146 +1,135 @@
-# AutoDoc: Architecture & Design Summary
+# AutoDoc Architecture
 
-## Overview
-
-**AutoDoc** is a cross-language tool designed to automatically generate documentation from Java codebases, with an initial focus on producing OpenAPI (Swagger) specifications. The system consists of two core components:
-
-1. **Java CLI Parser Tool** – Parses Java source code using JavaParser and outputs structured JSON.
-2. **Golang CLI Orchestrator** – Manages user interaction, invokes the Java tool, processes JSON, and outputs OpenAPI documentation.
-
-This architecture is modular, extensible, and optimized for performance and portability.
+This document describes the architecture of AutoDoc, a modular system that produces OpenAPI specifications in two decoupled phases.
 
 ---
 
-## Key Design Goals
+## Goals
 
-* **Separation of Concerns**: Java handles language-specific parsing; Go handles orchestration and CLI interaction.
-* **Static Analysis**: All documentation is derived from source code, not runtime reflection.
-* **Extensibility**: System is designed to grow with features like Swagger UI generation, dependency graphs, and Git integration.
-* **Cross-Platform Deployment**: Using Go's static binaries and Java's wide runtime support.
-
----
-
-## Component 1: Java CLI Parser
-
-### Purpose
-
-Parses Java source code to extract:
-
-* REST controllers and endpoints (via Spring annotations)
-* Request and response models
-* Field and type information for data models
-* Other documentation-relevant metadata
-
-### Implementation
-
-* **Language**: Java
-* **Parser Library**: [JavaParser](https://javaparser.org/)
-* **Entry Point**: `AutoDocParser.java`
-* **Input**: Java source code directory or individual files
-* **Output**: Structured JSON describing API paths, methods, parameters, models, etc.
-
-### Example Output File
-
-* `autodoc-output.json`
-
-### Sample Run Command
-
-```bash
-java -cp "./target/autodoc-parser-1.0-SNAPSHOT.jar:lib/*" com.autodoc.AutoDocParser ./src > autodoc-output.json
-```
+* **Modularity**: Keep parsing logic separate from spec generation.
+* **Language Agnostic**: Support multiple parser front‑ends (Java, Kotlin, etc.) emitting the same IR.
+* **Centralized OpenAPI Logic**: Concentrate all schema and spec‑building rules in the Go CLI.
+* **Extensibility**: Easily add new metadata (vendor extensions, deprecation flags) or security requirements without touching parsers.
 
 ---
 
-## Component 2: Go CLI Orchestrator
+## System Overview
 
-### Purpose
+AutoDoc consists of two primary modules:
 
-* Acts as the user interface
-* Takes input arguments (e.g., project directory, output path)
-* Spawns the Java CLI tool
-* Waits for and loads the JSON output
-* Converts JSON into a final OpenAPI spec
+1. **Parser Module (`java-parser`)**
 
-### Implementation
+   * **Purpose**: Analyze application source (controllers, DTOs/entities) and emit a minimal Intermediate Representation (IR).
+   * **Inputs**: Source code directory (e.g. `src/main/java`).
+   * **Outputs**: `parsed.json`, matching the IR schema below.
 
-* **Language**: Go
-* **Packages**: `os/exec`, `encoding/json`, `io/ioutil`, `cobra` (optional for CLI UX)
+2. **Spec Generator (`go-autodoc`)**
 
-### Strategy
-
-1. CLI accepts flags (e.g., `-project-dir`, `-output-dir`)
-2. Constructs Java command dynamically
-3. Spawns Java parser using `exec.Command`
-4. Waits for process completion, captures stdout or file output
-5. Parses JSON using Go structs
-6. Renders OpenAPI spec to file (YAML or JSON)
-
-### Communication Strategy
-
-* Java writes structured JSON to a file or stdout
-* Go reads from file or pipes and unmarshals it into Go structs
-* The interface is decoupled, ensuring either tool can evolve independently
+   * **Purpose**: Consume the IR and produce a fully valid OpenAPI v3 document.
+   * **Inputs**: `parsed.json` plus user‑supplied metadata (`--info`, `--servers`, optional `--security-requirements`).
+   * **Outputs**: `openapi.yaml` (or JSON).
 
 ---
 
-## Example JSON Schema (Simplified)
+## IR JSON Schema
 
-```json
+```jsonc
 {
-  "paths": {
-    "/products": {
-      "get": {
-        "summary": "Get all products",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Product"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "Product": {
-        "type": "object",
-        "properties": {
-          "id": {"type": "integer"},
-          "name": {"type": "string"}
-        }
-      }
-    }
-  }
+  "models": [ ModelData ],
+  "endpoints": [ EndpointData ],
+  "securitySchemes"?: [ SecuritySchemeData ]
 }
 ```
 
+* **ModelData**
+
+  ```jsonc
+  {
+    "name": "UserDto",
+    "description": "Class-level Javadoc or annotations",
+    "fields": [
+      {
+        "name": "id",
+        "required": true,
+        "description": "Field-level Javadoc or @NotNull",
+        "typeRef": { "base": "Long", "args": [] }
+      }
+    ]
+  }
+  ```
+
+* **EndpointData**
+
+  ```jsonc
+  {
+    "path": "/users/{id}",
+    "method": "GET",
+    "summary": "Optional @Operation summary",
+    "description": "Optional @Operation description",
+    "tags": ["User"],
+    "parameters": [ ParameterData ],
+    "requestBodyType": { "base": "UserDto", "args": [] } | null,
+    "responseType": { "base":"ApiResponse","args":[ { "base":"UserDto","args":[] } ] }
+  }
+  ```
+
+* **ParameterData**
+
+  ```jsonc
+  {
+    "name": "id",
+    "in": "path",
+    "required": true,
+    "description": "",
+    "typeRef": { "base": "Long", "args": [] }
+  }
+  ```
+
+* **TypeRefData**
+
+  ```jsonc
+  {
+    "base": "List",        // raw type name
+    "args": [               // generic arguments (empty list if none)
+      { "base": "Product", "args": [] }
+    ]
+  }
+  ```
+
 ---
 
-## Why This Approach?
+## Data Flow
 
-* **No Existing Tool Fits**: Existing tools like Springdoc or Swagger Core are runtime-based and do not parse source code statically.
-* **Full Control**: Custom JSON schema enables granular control and future extensibility.
-* **Performance & Portability**: Go ensures fast CLI and simple deployment. JavaParser is mature and well-suited for source analysis.
-* **Developer-Friendly**: Modular architecture allows teams to contribute to either the Go or Java portion without needing deep cross-knowledge.
+1. **Parse**:
+
+   ```bash
+   java -jar autodoc-parser.jar --source src/main/java > parsed.json
+   ```
+2. **Generate Spec**:
+
+   ```bash
+   go-autodoc \
+     --input parsed.json \
+     --info title="My API",version="1.0.0" \
+     --servers url="https://api.example.com" \
+     --output openapi.yaml
+   ```
+3. **Publish**: Deploy `openapi.yaml` to your API gateway or documentation site.
 
 ---
 
-## Next Steps
+## Supporting Documents
 
-* Finalize JSON output schema
-* Build OpenAPI renderer in Go
-* Handle edge cases (e.g., nested DTOs, inheritance)
-* Support for additional metadata (tags, descriptions, etc.)
-* Future: Swagger UI generation and Git versioned documentation
+* **`overview.md`**: Reflect the IR‑first workflow and CLI usage.
+* **`README.md`** (java-parser, go-autodoc): Update usage examples and flags.
+* **Developer Guide**: Add sections on creating new parsers and extending the CLI builder.
+* **CI/CD Config**: Ensure pipelines execute parser then CLI rather than legacy spec generators.
 
 ---
 
-## Final Thoughts
+## Extensibility
 
-The current architecture strikes a solid balance between power, flexibility, and simplicity. By keeping the parser in Java and the orchestrator in Go, you preserve clear boundaries and create a clean, enterprise-friendly toolchain for automated documentation generation.
+* **New Parsers**: Add support for other languages by emitting the same IR.
+* **Custom Metadata**: Extend IR with vendor‑specific fields or deprecation markers.
+* **Security Requirements**: Support global and operation‑level security entries via IR and CLI flags.
+
