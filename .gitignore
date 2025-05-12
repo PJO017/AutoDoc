@@ -1,4 +1,5 @@
 .vscode
 autodoc/go-autodoc/bin/
+autodoc/go-autodoc/parser/parser.jar
 autodoc/java-parser/target/
 autodoc/output/

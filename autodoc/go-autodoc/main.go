@@ -1,38 +1,47 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"os"
 	"log"
+	"os"
 
 	"autodoc/parser"
+	"autodoc/generator"
+
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
-	// Parsing the arguments for Java file path
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: go-autodoc <java-source-dir> <output-dir>")
+	srcDir := flag.String("source", "", "Path to your Java/Kotlin/etc. source")
+	info := flag.String("info", "title=\"API\",version=\"1.0.0\"", "API info metadata")
+	servers := flag.String("servers", "url=\"https://api.example.com\"", "Server list")
+	out := flag.String("output", "openapi.yaml", "Output spec file")
+	flag.Parse()
+
+	if *srcDir == "" {
+		fmt.Fprintln(os.Stderr, "⚠️  --source is required")
 		os.Exit(1)
 	}
 
-	javaSrcDir := os.Args[1]
-	outputDir := os.Args[2]
-
-	// Call the Java tool to parse the Java file
-	classInfoJSON, err := parser.CallJavaParser(javaSrcDir)
+	// 1) **Parse** your code into the shared IR
+	ir, err := parser.Parse(*srcDir)
 	if err != nil {
-		log.Fatalf("Error calling Java parser: %v", err)
+		log.Fatalf("failed to parse source: %v", err)
 	}
 
-	// Print out the JSON received from Java tool (for debugging)
-	fmt.Println("Received JSON from Java tool:")
-	fmt.Println(classInfoJSON)
+	// 2) **Build** the OpenAPI spec from that IR
+	apiInfo := parseInfo(*info) // your helper to split key=val pairs
+	srvConfigs := parseServers(*servers)
+	spec := generator.BuildOpenAPISpec(*ir, apiInfo, srvConfigs)
 
-	// Optionally, you can unmarshal and further process the data to generate OpenAPI or other docs
-	// For example, write the JSON to the output directory:
-	err = os.WriteFile(outputDir+"/output.json", []byte(classInfoJSON), 0644)
+	// 3) **Emit** YAML
+	outYAML, err := yaml.Marshal(spec)
 	if err != nil {
-		log.Fatalf("Error writing JSON to file: %v", err)
+		log.Fatalf("yaml marshal failed: %v", err)
 	}
-	fmt.Println("JSON output written to:", outputDir+"/output.json")
+	if err := os.WriteFile(*out, outYAML, 0644); err != nil {
+		log.Fatalf("write failed: %v", err)
+	}
+	fmt.Println("OpenAPI spec written to", *out)
 }

@@ -2,12 +2,15 @@ package com.autodoc.parser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.autodoc.model.FieldData;
 import com.autodoc.model.ModelData;
 import com.autodoc.model.TypeRefData;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.EnumConstantDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
@@ -47,6 +50,10 @@ public class ModelParser {
         List<ClassOrInterfaceDeclaration> clsList = compilationUnit
                 .findAll(ClassOrInterfaceDeclaration.class);
 
+        // Get all enums in the current CompilationUnit
+        List<EnumDeclaration> enumList = compilationUnit
+                .findAll(EnumDeclaration.class);
+
         for (ClassOrInterfaceDeclaration cls : clsList) {
             // Skip abstract or interface classes
             if (cls.isInterface() || cls.isAbstract()) {
@@ -59,7 +66,8 @@ public class ModelParser {
             }
 
             // Check for model annotations
-            boolean isModel = hasModelAnnotation(cls) || isInModelPackage(cls);
+            boolean isModel = hasModelAnnotation(cls) || isInModelPackage(cls) || cls.isEnumDeclaration()
+                    || cls.isRecordDeclaration();
 
             if (!isModel) {
                 continue; // Skip non-model classes
@@ -109,6 +117,30 @@ public class ModelParser {
             // Add the model to the parsed project
             parsedProject.addModel(modelData);
         }
+
+        // Process enums
+        for (EnumDeclaration enumDecl : enumList) {
+
+            String name = enumDecl.getNameAsString();
+            String description = enumDecl.getJavadoc()
+                    .map(j -> j.getDescription().toText().trim())
+                    .orElse("");
+
+            // Each enum constant as a FieldData (or you can create a special EnumValueData)
+            List<FieldData> values = new ArrayList<>();
+            for (EnumConstantDeclaration constant : enumDecl.getEntries()) {
+                FieldData f = new FieldData();
+                f.setName(constant.getNameAsString());
+                f.setDescription(constant.getJavadoc()
+                        .map(j -> j.getDescription().toText().trim())
+                        .orElse(""));
+                // Optionally set type info if needed
+                values.add(f);
+            }
+
+            ModelData modelData = new ModelData(name, description, values);
+            parsedProject.addModel(modelData);
+        }
     }
 
     private TypeRefData typeRefFrom(Type t) {
@@ -135,14 +167,22 @@ public class ModelParser {
 
     // Check if the class is in a non-model package
     private boolean isServiceClass(ClassOrInterfaceDeclaration classDecl) {
-        String packageName = classDecl.getParentNode()
-                .map(parent -> parent.toString()) // Get the package path
-                .orElse("").toLowerCase();
+        // Climb up to the CompilationUnit
+        Optional<CompilationUnit> cu = classDecl.findCompilationUnit();
 
-        // Filter based on package names
-        return packageName.contains("service") || packageName.contains("repository") || packageName.contains("config")
-                || packageName.contains("controller") || packageName.contains("util")
-                || packageName.contains("handler");
+        // Extract the package name, lower‐cased
+        String pkg = cu
+                .flatMap(CompilationUnit::getPackageDeclaration)
+                .map(pd -> pd.getNameAsString().toLowerCase())
+                .orElse("");
+
+        // Now do your simple substring checks on only the package path
+        return pkg.contains("service")
+                || pkg.contains("repository")
+                || pkg.contains("config")
+                || pkg.contains("controller")
+                || pkg.contains("util")
+                || pkg.contains("handler");
     }
 
     // Check if the class has model-related annotations
@@ -151,7 +191,8 @@ public class ModelParser {
 
         // Check for annotations like @Entity, @Data, @JsonProperty, etc.
         return annotations.stream()
-                .anyMatch(ann -> List.of("Entity", "Data", "Table", "JsonProperty", "JsonInclude")
+                .anyMatch(ann -> List
+                        .of("Entity", "Data", "Table", "JsonProperty", "JsonInclude", "Schema", "ApiModel")
                         .contains(ann.getNameAsString()));
     }
 
