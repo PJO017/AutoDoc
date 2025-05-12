@@ -1,12 +1,16 @@
 package com.autodoc;
 
-import com.autodoc.generator.JavaToOpenApiGenerator;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
 import java.io.File;
 import java.nio.file.Path;
-import java.util.Map;
+import java.util.List;
+
+import com.autodoc.parser.ControllerParser;
+import com.autodoc.parser.ModelParser;
+import com.autodoc.parser.ParsedProject;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.utils.SourceRoot;
 
 public class AutodocApplication {
 
@@ -18,12 +22,35 @@ public class AutodocApplication {
 
         try {
             Path sourcePath = new File(args[0]).toPath();
-            JavaToOpenApiGenerator generator = new JavaToOpenApiGenerator();
-            Map<String, Object> spec = generator.generate(sourcePath);
+            ParsedProject parsedProject = new ParsedProject();
 
-            ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-            String json = mapper.writeValueAsString(spec);
-            System.out.println(json);
+            // Parse all compilation units
+            SourceRoot sourceRoot = new SourceRoot(sourcePath);
+            List<CompilationUnit> units = sourceRoot.tryToParse().stream()
+                    .filter(r -> r.isSuccessful() && r.getResult().isPresent())
+                    .map(r -> r.getResult().get())
+                    .toList();
+
+            // Extract models
+            ModelParser modelParser = new ModelParser();
+            for (CompilationUnit cu : units) {
+                modelParser.parseModelClasses(cu, parsedProject);
+            }
+
+            // Extract controllers/endpoints
+            ControllerParser controllerParser = new ControllerParser();
+            for (CompilationUnit cu : units) {
+                controllerParser.parseControllerClasses(cu, parsedProject);
+            }
+
+            // Serialize IR as JSON
+            ObjectMapper mapper = new ObjectMapper()
+                    .enable(SerializationFeature.INDENT_OUTPUT);
+            if (args.length >= 2) {
+                mapper.writeValue(new File(args[1]), parsedProject);
+            } else {
+                mapper.writeValue(System.out, parsedProject);
+            }
 
         } catch (Exception e) {
             e.printStackTrace();

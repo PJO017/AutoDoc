@@ -1,22 +1,25 @@
 package com.autodoc.model;
 
-public class FieldData {
+public class ParameterData {
     private String name;
-    private TypeRefData typeRef;
+    private String in;
     private boolean required;
     private String description;
+    TypeRefData type;
 
-    public FieldData() {
+    public ParameterData() {
     }
 
-    public FieldData(String name,
-            TypeRefData typeRef,
+    public ParameterData(String name,
+            String in,
             boolean required,
-            String description) {
+            String description,
+            TypeRefData type) {
         this.name = name;
-        this.typeRef = typeRef;
+        this.in = in;
         this.required = required;
         this.description = description;
+        this.type = type;
     }
 
     public String getName() {
@@ -27,12 +30,12 @@ public class FieldData {
         this.name = name;
     }
 
-    public TypeRefData getTypeRef() {
-        return typeRef;
+    public String getIn() {
+        return in;
     }
 
-    public void setTypeRef(TypeRefData typeRef) {
-        this.typeRef = typeRef;
+    public void setIn(String in) {
+        this.in = in;
     }
 
     public boolean isRequired() {
@@ -51,11 +54,23 @@ public class FieldData {
         this.description = description;
     }
 
+    public TypeRefData getType() {
+        return type;
+    }
+
+    public void setType(TypeRefData type) {
+        this.type = type;
+    }
+
     @Override
     public String toString() {
-        return "FieldData{" +
+        return "ParameterData{" +
                 "name='" + name + '\'' +
-                ", typeRef=" + typeRef +
+                ", in='" + in + '\'' +
+                ", required=" + required +
+                ", description='" + description + '\'' +
+                ", type=" + type +
                 '}';
     }
+
 }

@@ -3,71 +3,97 @@ package com.autodoc.model;
 import java.util.List;
 
 public class EndpointData {
+    private String path;
+    private String method;
+    private String summary;
+    private String description;
+    private List<String> tags;
+    private List<ParameterData> parameters;
+    TypeRefData requestBodyType;
+    TypeRefData responseType;
 
-    private String endpoint;
-    private String httpMethod;
-    private List<String> parameters;
-    private String requestBody;
-    private String responseType;
+    public EndpointData() {
+    }
 
-    // Constructor
-    public EndpointData(String endpoint, String httpMethod, List<String> parameters, String requestBody, String responseType) {
-        this.endpoint = endpoint;
-        this.httpMethod = httpMethod;
+    public EndpointData(String path,
+            String method,
+            String summary,
+            String description,
+            List<String> tags,
+            List<ParameterData> parameters,
+            TypeRefData requestBodyType,
+            TypeRefData responseType) {
+        this.path = path;
+        this.method = method;
+        this.summary = summary;
+        this.description = description;
+        this.tags = tags;
         this.parameters = parameters;
-        this.requestBody = requestBody;
+        this.requestBodyType = requestBodyType;
         this.responseType = responseType;
     }
 
-    // Getters and Setters
-    public String getEndpoint() {
-        return endpoint;
+    public String getPath() {
+        return path;
     }
 
-    public void setEndpoint(String endpoint) {
-        this.endpoint = endpoint;
+    public void setPath(String path) {
+        this.path = path;
     }
 
-    public String getHttpMethod() {
-        return httpMethod;
+    public String getMethod() {
+        return method;
     }
 
-    public void setHttpMethod(String httpMethod) {
-        this.httpMethod = httpMethod;
+    public void setMethod(String method) {
+        this.method = method;
     }
 
-    public List<String> getParameters() {
+    public String getSummary() {
+        return summary;
+    }
+
+    public void setSummary(String summary) {
+        this.summary = summary;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
+    }
+
+    public List<ParameterData> getParameters() {
         return parameters;
     }
 
-    public void setParameters(List<String> parameters) {
+    public void setParameters(List<ParameterData> parameters) {
         this.parameters = parameters;
     }
 
-    public String getRequestBody() {
-        return requestBody;
+    public TypeRefData getRequestBodyType() {
+        return requestBodyType;
     }
 
-    public void setRequestBody(String requestBody) {
-        this.requestBody = requestBody;
+    public void setRequestBodyType(TypeRefData requestBodyType) {
+        this.requestBodyType = requestBodyType;
     }
 
-    public String getResponseType() {
+    public TypeRefData getResponseType() {
         return responseType;
     }
 
-    public void setResponseType(String responseType) {
+    public void setResponseType(TypeRefData responseType) {
         this.responseType = responseType;
-    }
-
-    @Override
-    public String toString() {
-        return "EndpointData{" +
-                "endpoint='" + endpoint + '\'' +
-                ", httpMethod='" + httpMethod + '\'' +
-                ", parameters=" + parameters +
-                ", requestBody='" + requestBody + '\'' +
-                ", responseType='" + responseType + '\'' +
-                '}';
     }
 }

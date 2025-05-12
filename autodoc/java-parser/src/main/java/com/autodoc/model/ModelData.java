@@ -2,29 +2,35 @@ package com.autodoc.model;
 
 import java.util.List;
 
-import java.util.ArrayList;
-
 public class ModelData {
     private String name;
-    private String packageName;
+    private String description;
     private List<FieldData> fields;
 
-    public ModelData(String name, String packageName) {
+    public ModelData(String name, String description, List<FieldData> fields) {
         this.name = name;
-        this.packageName = packageName;
-        this.fields = new ArrayList<>();
+        this.description = description;
+        this.fields = fields;
     }
 
     public String getName() {
         return name;
     }
 
-    public String getPackageName() {
-        return packageName;
+    public String getDescription() {
+        return description;
     }
 
     public List<FieldData> getFields() {
         return fields;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public void setFields(List<FieldData> fields) {
@@ -39,7 +45,6 @@ public class ModelData {
     public String toString() {
         return "ModelData{" +
                 "name='" + name + '\'' +
-                ", packageName='" + packageName + '\'' +
                 ", fields=" + fields +
                 '}';
     }
