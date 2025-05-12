@@ -14,103 +14,100 @@ import java.util.List;
 
 public class ControllerParser {
 
-    // Method to parse a single file
     public void parseControllerFile(Path filePath, ParsedProject parsedProject) throws IOException {
         SourceRoot sourceRoot = new SourceRoot(filePath.getParent());
         CompilationUnit cu = sourceRoot.parse("", filePath.getFileName().toString());
-
-        // Traverse classes and methods in the file
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
-            // Check if the class is a REST controller
-            clazz.getAnnotations().forEach(annotation -> {
-                if (annotation.getNameAsString().equals("RestController") || annotation.getNameAsString().equals("Controller")) {
-                    parseControllerMethods(clazz, parsedProject);
-                }
-            });
+            if (clazz.getAnnotations().stream()
+                    .anyMatch(a -> a.getNameAsString().matches("RestController|Controller"))) {
+                // Capture class-level base path from @RequestMapping
+                String basePath = clazz.getAnnotations().stream()
+                        .filter(a -> a.getNameAsString().equals("RequestMapping"))
+                        .findFirst()
+                        .map(this::extractEndpoint)
+                        .orElse("");
+                parseControllerMethods(clazz, basePath, parsedProject);
+            }
         });
     }
 
-    // Parse the methods in the controller class
-    private void parseControllerMethods(ClassOrInterfaceDeclaration clazz, ParsedProject parsedProject) {
-        clazz.getMethods().forEach(method -> {
-            // Check for endpoint annotations
-            method.getAnnotations().forEach(annotation -> {
-                if (isRestEndpointAnnotation(annotation)) {
-                    String endpoint = extractEndpoint(annotation);
+    private void parseControllerMethods(ClassOrInterfaceDeclaration clazz, String basePath,
+            ParsedProject parsedProject) {
+        for (MethodDeclaration method : clazz.getMethods()) {
+            for (AnnotationExpr annotation : method.getAnnotations()) {
+                if (annotation.getNameAsString()
+                        .matches("GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping")) {
+                    // Determine relative path (empty if none specified)
+                    String relativePath = extractEndpoint(annotation);
+                    // Build full path by combining class and method paths
+                    String fullPath;
+                    if (relativePath.isEmpty()) {
+                        fullPath = basePath;
+                    } else if (basePath.endsWith("/")) {
+                        fullPath = basePath + (relativePath.startsWith("/") ? relativePath.substring(1) : relativePath);
+                    } else {
+                        fullPath = basePath + (relativePath.startsWith("/") ? relativePath : "/" + relativePath);
+                    }
+
                     String httpMethod = extractHttpMethod(annotation);
-
-                    // Parse method parameters (request params, path variables, etc.)
-                    List<String> parameters = parseMethodParameters(method);
-
-                    // Parse request body and response type
+                    List<String> params = parseMethodParameters(method);
                     String requestBody = parseRequestBody(method);
-                    String responseType = method.getType().asString();  // Assumes return type is the response type
+                    String responseType = method.getType().asString();
 
-                    // Store this method in the parsed project
-                    parsedProject.addEndpoint(new EndpointData(endpoint, httpMethod, parameters, requestBody, responseType));
-                    System.out.println("Endpoint: " + endpoint + " Method: " + httpMethod);
+                    parsedProject.addEndpoint(
+                            new EndpointData(fullPath, httpMethod, params, requestBody, responseType));
                 }
-            });
-        });
+            }
+        }
     }
 
-    // Check if the annotation is a valid REST endpoint annotation
-    private boolean isRestEndpointAnnotation(AnnotationExpr annotation) {
-        return annotation.getNameAsString().matches("GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping");
-    }
-
-    // Extract the endpoint URL from the annotation
     private String extractEndpoint(AnnotationExpr annotation) {
-        // Extract path from the annotation if it's present
-        if (annotation.isNormalAnnotationExpr()) {
-            annotation.asNormalAnnotationExpr().getPairs().forEach(pair -> {
-                if (pair.getNameAsString().equals("value")) {
-                    System.out.println("Path: " + pair.getValue().toString());
-                }
-            });
+        if (annotation.isMarkerAnnotationExpr()) {
+            return "";
+        } else if (annotation.isSingleMemberAnnotationExpr()) {
+            return annotation.asSingleMemberAnnotationExpr()
+                    .getMemberValue().asStringLiteralExpr().getValue();
+        } else if (annotation.isNormalAnnotationExpr()) {
+            return annotation.asNormalAnnotationExpr().getPairs().stream()
+                    .filter(p -> p.getNameAsString().matches("value|path"))
+                    .findFirst()
+                    .map(p -> p.getValue().asStringLiteralExpr().getValue())
+                    .orElse("");
         }
-        return annotation.toString(); // Placeholder for path extraction
+        return "";
     }
 
-    // Extract the HTTP method (GET, POST, etc.) from the annotation
     private String extractHttpMethod(AnnotationExpr annotation) {
-        // Extract HTTP method based on the annotation
-        if (annotation.getNameAsString().equals("GetMapping")) {
-            return "GET";
-        } else if (annotation.getNameAsString().equals("PostMapping")) {
-            return "POST";
-        } else if (annotation.getNameAsString().equals("PutMapping")) {
-            return "PUT";
-        } else if (annotation.getNameAsString().equals("DeleteMapping")) {
-            return "DELETE";
-        } else if (annotation.getNameAsString().equals("RequestMapping")) {
-            return "REQUEST";
+        switch (annotation.getNameAsString()) {
+            case "GetMapping":
+                return "GET";
+            case "PostMapping":
+                return "POST";
+            case "PutMapping":
+                return "PUT";
+            case "DeleteMapping":
+                return "DELETE";
+            default:
+                return "GET";
         }
-        return "UNKNOWN";  // Default if no known mapping is found
     }
 
-    // Parse method parameters (request parameters, path variables, etc.)
     private List<String> parseMethodParameters(MethodDeclaration method) {
         List<String> parameters = new ArrayList<>();
-        method.getParameters().forEach(param -> {
-            // Check for @PathVariable or @RequestParam or other annotations
-            param.getAnnotations().forEach(annotation -> {
-                if (annotation.getNameAsString().equals("PathVariable")) {
-                    parameters.add("PathVariable: " + param.getName());
-                } else if (annotation.getNameAsString().equals("RequestParam")) {
-                    parameters.add("RequestParam: " + param.getName());
-                }
-            });
-        });
+        method.getParameters().forEach(p -> p.getAnnotations().forEach(a -> {
+            String kind = a.getNameAsString();
+            if (kind.equals("PathVariable") || kind.equals("RequestParam")) {
+                parameters.add(kind + ": " + p.getNameAsString());
+            }
+        }));
         return parameters;
     }
 
-    // Parse request body from method annotations
     private String parseRequestBody(MethodDeclaration method) {
         return method.getAnnotations().stream()
-                .filter(annotation -> annotation.getNameAsString().equals("RequestBody"))
-                .map(annotation -> "RequestBody: " + method.getNameAsString())
+                .filter(a -> a.getNameAsString().equals("RequestBody"))
+                .map(a -> method.getNameAsString())
                 .findFirst()
-                .orElse("No RequestBody");
+                .orElse(null);
     }
 }
