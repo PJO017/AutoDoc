@@ -68,13 +68,90 @@ func GenerateEndpointTable(ir *parser.IR, outputPath string) error {
 	sb.WriteString("| Controller | Method | Path | Params | Description |\n")
 	sb.WriteString("|------------|--------|------|--------|-------------|\n")
 	for _, r := range rows {
-		sb.WriteString(fmt.Sprintf("| %s | %s | `%s` | %s | %s |\n", r.controller, r.method, r.path, r.params, r.summary))
+		ctrl := r.controller
+		method := r.method
+		path := r.path
+		params := r.params
+		summary := r.summary
+		if ctrl == "" {
+			ctrl = "-"
+		}
+		if method == "" {
+			method = "-"
+		}
+		if path == "" {
+			path = "-"
+		}
+		if params == "" {
+			params = "-"
+		}
+		if summary == "" {
+			summary = "-"
+		}
+		sb.WriteString(fmt.Sprintf("| %s | %s | `%s` | %s | %s |\n", ctrl, method, path, params, summary))
 	}
 
 	// Write file
 	err := os.WriteFile(outputPath, []byte(sb.String()), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write endpoint table: %w", err)
+	}
+	return nil
+}
+
+// GenerateModelTable writes a Markdown file with a separate table for each model.
+func GenerateModelTable(ir *parser.IR, outputPath string) error {
+	var sb strings.Builder
+
+	// Sort models by name
+	models := make([]parser.ModelData, len(ir.Models))
+	copy(models, ir.Models)
+	sort.Slice(models, func(i, j int) bool {
+		return models[i].Name < models[j].Name
+	})
+
+	for _, m := range models {
+		name := m.Name
+		if name == "" {
+			name = "-"
+		}
+		desc := m.Description
+		if desc == "" {
+			desc = "-"
+		}
+		sb.WriteString(fmt.Sprintf("### %s\n\n", name))
+		sb.WriteString(fmt.Sprintf("_Description_: %s\n\n", desc))
+		sb.WriteString("| Field | Type | Required | Description |\n")
+		sb.WriteString("|-------|------|----------|-------------|\n")
+		if len(m.Fields) == 0 {
+			sb.WriteString("| - | - | - | - |\n")
+		} else {
+			for _, f := range m.Fields {
+				fieldName := f.Name
+				if fieldName == "" {
+					fieldName = "-"
+				}
+				fieldType := f.TypeRef.Base
+				if fieldType == "" {
+					fieldType = "-"
+				}
+				required := "no"
+				if f.Required {
+					required = "yes"
+				}
+				fieldDesc := f.Description
+				if fieldDesc == "" {
+					fieldDesc = "-"
+				}
+				sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n", fieldName, fieldType, required, fieldDesc))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	err := os.WriteFile(outputPath, []byte(sb.String()), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write model table: %w", err)
 	}
 	return nil
 }

@@ -96,6 +96,12 @@ func runGenerate() error {
 					return fmt.Errorf("endpoint-table generation failed: %w", err)
 				}
 				fmt.Println("Table generated:", path)
+			case "model-table":
+				path := filepath.Join(baseDir, "model-table.md")
+				if err := generator.GenerateModelTable(ir, path); err != nil {
+					return fmt.Errorf("model-table generation failed: %w", err)
+				}
+				fmt.Println("Table generated:", path)
 			// Add more table types here
 			default:
 				fmt.Fprintf(os.Stderr, "warning: unknown table type '%s'\n", t)

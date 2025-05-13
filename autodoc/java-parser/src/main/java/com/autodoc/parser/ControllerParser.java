@@ -137,6 +137,14 @@ public class ControllerParser {
     }
 
     private String extractOperationMember(MethodDeclaration m, String name) {
+        // Prefer Javadoc if present
+        if (m.getJavadoc().isPresent()) {
+            String content = m.getJavadoc().get().getDescription().toText().trim();
+            if (!content.isEmpty()) {
+                return content;
+            }
+        }
+        // Fallback to @Operation annotation
         return m.getAnnotationByName("Operation")
                 .filter(a -> a instanceof NormalAnnotationExpr)
                 .map(a -> ((NormalAnnotationExpr) a).getPairs().stream()
