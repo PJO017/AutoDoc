@@ -23,6 +23,7 @@ var (
 	lang     string
 	tables   string
 	diagrams string
+	graphStyle string
 )
 
 // rootCmd is the base command for go-autodoc
@@ -45,6 +46,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&lang, "lang", "l", "java", "Language parser to use (java|kotlin|python)")
 	rootCmd.PersistentFlags().StringVar(&tables, "tables", "", "Comma-separated tables to generate (e.g., endpoint-table)")
 	rootCmd.PersistentFlags().StringVar(&diagrams, "diagrams", "", "Comma-separated diagrams to generate (e.g., endpoint-map,model-table,controller-service)")
+	rootCmd.PersistentFlags().StringVar(&graphStyle, "graph-style", "class", "Graph style for controller-service diagram (class|flowchart)")
 
 	// Mark required flags
 	rootCmd.MarkPersistentFlagRequired("source")
@@ -98,8 +100,14 @@ func runGenerate() error {
 				fmt.Println("Table generated:", path)
 			case "controller-service":
 				path := filepath.Join(baseDir, "controller-service.mmd")
-				if err := generator.GenerateControllerServiceFlowchart(ir, path); err != nil {
-					return fmt.Errorf("controller-service graph generation failed: %w", err)
+				if graphStyle == "class" {
+					if err := generator.GenerateControllerServiceGraph(ir, path); err != nil {
+						return fmt.Errorf("controller-service graph generation failed: %w", err)
+					}
+				} else {
+					if err := generator.GenerateControllerServiceFlowchart(ir, path); err != nil {
+						return fmt.Errorf("controller-service graph generation failed: %w", err)
+					}
 				}
 				fmt.Println("Diagram generated:", path)
 			case "model-table":

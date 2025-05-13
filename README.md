@@ -137,7 +137,7 @@ Flags:
 2. Generate docs:
 
    ```bash
-   go-autodoc --input parsed.json --info title="Hello API",version="0.1.0" --tables endpoint-table --output openapi.yaml
+   go-autodoc --info title="Hello API",version="0.1.0" --tables endpoint-table --output openapi.yaml
    ```
 3. Inspect outputs:
 
