@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '23'
 
       - name: Build Java parser JAR
         working-directory: autodoc/java-parser
