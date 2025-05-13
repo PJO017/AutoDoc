@@ -68,6 +68,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body: Auto-generated release for ${{ github.ref_name }}
-          files: go-autodoc/bin/*
+          files: autodoc/go-autodoc/bin/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
