@@ -27,72 +27,150 @@ func buildSchemas(models []parser.ModelData) map[string]interface{} {
 
 	comps := make(map[string]interface{}, len(models))
 	for _, m := range models {
-		// --- ENUM DETECTION: if every field has no TypeRef.Base, treat as enum
-		isEnum := len(m.Fields) > 0
-		for _, f := range m.Fields {
-			if f.TypeRef.Base != "" {
-				isEnum = false
-				break
+		// --- ENUM DETECTION: if model is marked as enum or every field has no TypeRef.Base, treat as enum
+		isEnum := m.IsEnum || (len(m.Fields) > 0 && func() bool {
+			for _, f := range m.Fields {
+				if f.TypeRef.Base != "" {
+					return false
+				}
 			}
-		}
+			return true
+		}())
+
 		if isEnum {
 			vals := make([]interface{}, len(m.Fields))
 			for i, f := range m.Fields {
 				vals[i] = f.Name
 			}
-			comps[m.Name] = map[string]interface{}{
+
+			// Create enum schema with additional info
+			enumSchema := map[string]interface{}{
 				"type": "string",
 				"enum": vals,
 			}
+
+			// Add description if available
+			if m.Description != "" {
+				enumSchema["description"] = m.Description
+			}
+
+			// Add deprecation if applicable
+			if m.Deprecated {
+				enumSchema["deprecated"] = true
+			}
+
+			comps[m.Name] = enumSchema
 			continue
 		}
 
 		// --- OBJECT SCHEMA for non‐enums
 		props := make(map[string]interface{}, len(m.Fields))
+		required := []string{}
+
 		for _, f := range m.Fields {
-			var schema map[string]interface{}
+			// Build the property schema
+			schema := buildPropertySchema(f, known)
 
-			// a) Handle generic collections
-			if f.TypeRef.Base == "List" || f.TypeRef.Base == "Set" {
-				inner := f.TypeRef.Args[0]
-				schema = map[string]interface{}{
-					"type":  "array",
-					"items": schemaFor(inner),
-				}
-
-				// b) Primitive or known type
-			} else if t := mapJavaType(f.TypeRef.Base); t != "" {
-				schema = map[string]interface{}{"type": t}
-
-				// c) Model reference
-			} else if _, isModel := known[f.TypeRef.Base]; isModel {
-				schema = map[string]interface{}{
-					"$ref": "#/components/schemas/" + f.TypeRef.Base,
-				}
-
-				// d) Unknown, skip
-			} else {
-				continue
+			// Track required fields
+			if f.Required {
+				required = append(required, f.Name)
 			}
 
 			props[f.Name] = schema
 		}
 
-		comps[m.Name] = map[string]interface{}{
+		// Build the model schema
+		modelSchema := map[string]interface{}{
 			"type":       "object",
 			"properties": props,
 		}
+
+		// Add required fields array if any
+		if len(required) > 0 {
+			modelSchema["required"] = required
+		}
+
+		// Add description if available
+		if m.Description != "" {
+			modelSchema["description"] = m.Description
+		}
+
+		// Add example if available
+		if m.Example != "" {
+			modelSchema["example"] = m.Example
+		}
+
+		// Add deprecation if applicable
+		if m.Deprecated {
+			modelSchema["deprecated"] = true
+		}
+
+		comps[m.Name] = modelSchema
 	}
 
 	return comps
 }
 
-// helper to handle nested generics & references
-func schemaFor(r parser.TypeRefData) interface{} {
-	if (r.Base == "List" || r.Base == "Set") && len(r.Args) > 0 {
+// buildPropertySchema creates an OpenAPI schema for a property/field
+func buildPropertySchema(f parser.FieldData, known map[string]struct{}) map[string]interface{} {
+	var schema map[string]interface{}
+
+	// a) Handle generic collections
+	if f.TypeRef.Base == "List" || f.TypeRef.Base == "Set" || f.TypeRef.Base == "Array" {
+		inner := f.TypeRef.Args[0]
+		schema = map[string]interface{}{
+			"type":  "array",
+			"items": schemaFor(inner, known),
+		}
+
+		// b) Primitive or known type
+	} else if t := mapJavaType(f.TypeRef.Base); t != "" {
+		schema = map[string]interface{}{"type": t}
+
+		// c) Model reference
+	} else if _, isModel := known[f.TypeRef.Base]; isModel {
+		schema = map[string]interface{}{
+			"$ref": "#/components/schemas/" + f.TypeRef.Base,
+		}
+
+		// d) Unknown, use string as default
+	} else {
+		schema = map[string]interface{}{"type": "string"}
+	}
+
+	// Add description if available
+	if f.Description != "" {
+		schema["description"] = f.Description
+	}
+
+	// Add example if available
+	if f.Example != "" {
+		schema["example"] = f.Example
+	}
+
+	// Add deprecation if applicable
+	if f.Deprecated {
+		schema["deprecated"] = true
+	}
+
+	// Add validation rules if any
+	for k, v := range f.ValidationRules {
+		// Map Java validation annotations to OpenAPI schema validation
+		switch k {
+		case "minLength", "maxLength", "pattern", "format", "minimum", "maximum":
+			schema[k] = v
+		}
+	}
+
+	return schema
+}
+
+// helper to handle nested generics & references with validation support
+func schemaFor(r parser.TypeRefData, known map[string]struct{}) interface{} {
+	if (r.Base == "List" || r.Base == "Set" || r.Base == "Array") && len(r.Args) > 0 {
 		return map[string]interface{}{
 			"type":  "array",
-			"items": schemaFor(r.Args[0]),
+			"items": schemaFor(r.Args[0], known),
 		}
 	}
 	if t := mapJavaType(r.Base); t != "" {
@@ -207,11 +285,33 @@ func buildPaths(eps []parser.EndpointData) map[string]interface{} {
 	paths := map[string]interface{}{}
 	for _, ep := range eps {
 		op := map[string]interface{}{}
+		
+		// Add basic operation data
 		op["parameters"] = buildParameters(ep.Parameters)
 		if ep.RequestBodyType != nil && strings.ToUpper(ep.Method) != "GET" {
 			op["requestBody"] = buildRequestBody(ep.RequestBodyType)
 		}
 		op["responses"] = buildResponses(ep.ResponseType)
+		
+		// Add description if available
+		if ep.Description != "" {
+			op["description"] = ep.Description
+		}
+		
+		// Add summary if available
+		if ep.Summary != "" {
+			op["summary"] = ep.Summary
+		}
+		
+		// Add tags if available
+		if len(ep.Tags) > 0 {
+			op["tags"] = ep.Tags
+		}
+		
+		// Add deprecated flag if applicable
+		if ep.Deprecated {
+			op["deprecated"] = true
+		}
 
 		m := strings.ToLower(ep.Method)
 		item, _ := paths[ep.Path].(map[string]interface{})

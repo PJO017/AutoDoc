@@ -115,35 +115,123 @@ func GenerateModelTable(ir *parser.IR, outputPath string) error {
 		if name == "" {
 			name = "-"
 		}
+
+		// Add model heading
+		sb.WriteString(fmt.Sprintf("### %s\n\n", name))
+
+		// Add description
 		desc := m.Description
 		if desc == "" {
 			desc = "-"
 		}
-		sb.WriteString(fmt.Sprintf("### %s\n\n", name))
 		sb.WriteString(fmt.Sprintf("_Description_: %s\n\n", desc))
-		sb.WriteString("| Field | Type | Required | Description |\n")
-		sb.WriteString("|-------|------|----------|-------------|\n")
-		if len(m.Fields) == 0 {
-			sb.WriteString("| - | - | - | - |\n")
+
+		// Add deprecation notice if applicable
+		if m.Deprecated {
+			sb.WriteString("**DEPRECATED**")
+			if m.DeprecationNotes != "" {
+				sb.WriteString(fmt.Sprintf(": %s", m.DeprecationNotes))
+			}
+			sb.WriteString("\n\n")
+		}
+
+		// Add since version if available
+		if m.Since != "" {
+			sb.WriteString(fmt.Sprintf("_Since_: %s\n\n", m.Since))
+		}
+
+		// Add inheritance info if available
+		if len(m.ExtendsList) > 0 {
+			sb.WriteString(fmt.Sprintf("_Extends_: %s\n\n", strings.Join(m.ExtendsList, ", ")))
+		}
+
+		if len(m.ImplementsList) > 0 {
+			sb.WriteString(fmt.Sprintf("_Implements_: %s\n\n", strings.Join(m.ImplementsList, ", ")))
+		}
+
+		// Add table header
+		if m.IsEnum {
+			sb.WriteString("| Value | Description |\n")
+			sb.WriteString("|-------|-------------|\n")
 		} else {
-			for _, f := range m.Fields {
-				fieldName := f.Name
-				if fieldName == "" {
-					fieldName = "-"
+			sb.WriteString("| Field | Type | Required | Description | Validation |\n")
+			sb.WriteString("|-------|------|----------|-------------|------------|\n")
+		}
+
+		// Add table rows
+		if len(m.Fields) == 0 {
+			if m.IsEnum {
+				sb.WriteString("| - | - |\n")
+			} else {
+				sb.WriteString("| - | - | - | - | - |\n")
+			}
+		} else {
+			if m.IsEnum {
+				for _, f := range m.Fields {
+					fieldName := f.Name
+					if fieldName == "" {
+						fieldName = "-"
+					}
+					fieldDesc := f.Description
+					if fieldDesc == "" {
+						fieldDesc = "-"
+					}
+					sb.WriteString(fmt.Sprintf("| %s | %s |\n", fieldName, fieldDesc))
 				}
-				fieldType := f.TypeRef.Base
-				if fieldType == "" {
-					fieldType = "-"
+			} else {
+				for _, f := range m.Fields {
+					fieldName := f.Name
+					if fieldName == "" {
+						fieldName = "-"
+					}
+
+					// Add deprecated marker
+					if f.Deprecated {
+						fieldName = fmt.Sprintf("~~%s~~ (deprecated)", fieldName)
+					}
+
+					fieldType := f.TypeRef.Base
+					if fieldType == "" {
+						fieldType = "-"
+					}
+
+					// Format generic types
+					if len(f.TypeRef.Args) > 0 {
+						args := make([]string, len(f.TypeRef.Args))
+						for i, arg := range f.TypeRef.Args {
+							args[i] = arg.Base
+						}
+						fieldType = fmt.Sprintf("%s<%s>", fieldType, strings.Join(args, ", "))
+					}
+
+					required := "no"
+					if f.Required {
+						required = "yes"
+					}
+
+					fieldDesc := f.Description
+					if fieldDesc == "" {
+						fieldDesc = "-"
+					}
+
+					// Add example if available
+					if f.Example != "" {
+						fieldDesc = fmt.Sprintf("%s (Example: `%s`)", fieldDesc, f.Example)
+					}
+
+					// Format validation rules
+					validation := "-"
+					if len(f.ValidationRules) > 0 {
+						validations := []string{}
+						for k, v := range f.ValidationRules {
+							validations = append(validations, fmt.Sprintf("%s: %v", k, v))
+						}
+						validation = strings.Join(validations, ", ")
+					}
+
+					sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s |\n",
+						fieldName, fieldType, required, fieldDesc, validation))
 				}
-				required := "no"
-				if f.Required {
-					required = "yes"
-				}
-				fieldDesc := f.Description
-				if fieldDesc == "" {
-					fieldDesc = "-"
-				}
-				sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n", fieldName, fieldType, required, fieldDesc))
 			}
 		}
 		sb.WriteString("\n")

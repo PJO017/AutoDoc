@@ -35,6 +35,8 @@ public class AutodocApplication {
             ModelParser modelParser = new ModelParser();
             for (CompilationUnit cu : units) {
                 modelParser.parseModelClasses(cu, parsedProject);
+                // Also process interfaces
+                modelParser.processInterfaces(cu, parsedProject);
             }
 
             // Extract controllers/endpoints
