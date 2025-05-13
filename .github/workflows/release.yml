@@ -33,7 +33,7 @@ jobs:
         working-directory: autodoc/java-parser
         run: |
           mvn clean package -DskipTests
-          cp target/autodoc-${{ github.ref_name }}.jar ../go-autodoc/parser/parser.jar
+          cp target/autodoc-parser-1.0-SNAPSHOT.jar ../go-autodoc/parser/parser.jar
 
       - name: Cache Go modules
         uses: actions/cache@v3
