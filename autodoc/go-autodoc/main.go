@@ -3,21 +3,26 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
-	"autodoc/parser"
 	"autodoc/generator"
+	"autodoc/parser"
+
 	"gopkg.in/yaml.v3"
-	
+
 	"github.com/spf13/cobra"
 )
 
 var (
 	// CLI flags
-	source  string
-	info    string
-	servers string
-	output  string
-	lang    string
+	source   string
+	info     string
+	servers  string
+	output   string
+	lang     string
+	tables   string
+	diagrams string
 )
 
 // rootCmd is the base command for go-autodoc
@@ -38,6 +43,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&servers, "servers", "S", "url=\"https://api.example.com\"", "Server list as url=\"...\",description=\"...\" pairs, semicolon-separated")
 	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "openapi.yaml", "Output spec file path")
 	rootCmd.PersistentFlags().StringVarP(&lang, "lang", "l", "java", "Language parser to use (java|kotlin|python)")
+	rootCmd.PersistentFlags().StringVar(&tables, "tables", "", "Comma-separated tables to generate (e.g., endpoint-table)")
+	rootCmd.PersistentFlags().StringVar(&diagrams, "diagrams", "", "Comma-separated diagrams to generate (e.g., endpoint-map)")
 
 	// Mark required flags
 	rootCmd.MarkPersistentFlagRequired("source")
@@ -75,5 +82,45 @@ func runGenerate() error {
 	}
 
 	fmt.Println("OpenAPI spec written to", output)
+
+	// 3) Generate tables if requested
+	if tables != "" {
+		tablesList := strings.Split(tables, ",")
+		// Determine base output directory for tables
+		baseDir := filepath.Dir(output)
+		for _, t := range tablesList {
+			switch strings.TrimSpace(t) {
+			case "endpoint-table":
+				path := filepath.Join(baseDir, "endpoint-table.md")
+				if err := generator.GenerateEndpointTable(ir, path); err != nil {
+					return fmt.Errorf("endpoint-table generation failed: %w", err)
+				}
+				fmt.Println("Table generated:", path)
+			// Add more table types here
+			default:
+				fmt.Fprintf(os.Stderr, "warning: unknown table type '%s'\n", t)
+			}
+		}
+	}
+
+	// 4) Generate diagrams if requested
+	if diagrams != "" {
+		dirs := strings.Split(diagrams, ",")
+		// Determine base output directory for diagrams
+		baseDir := filepath.Dir(output)
+		for _, d := range dirs {
+			switch strings.TrimSpace(d) {
+			case "endpoint-map":
+				path := filepath.Join(baseDir, "endpoint-map.mmd")
+				if err := generator.GenerateEndpointMap(ir, path); err != nil {
+					return fmt.Errorf("endpoint-map generation failed: %w", err)
+				}
+				fmt.Println("Diagram generated:", path)
+			// Add more diagram types here
+			default:
+				fmt.Fprintf(os.Stderr, "warning: unknown diagram type '%s'\n", d)
+			}
+		}
+	}
 	return nil
 }
