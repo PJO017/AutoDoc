@@ -50,7 +50,7 @@ jobs:
 
       - name: Build Go binaries
         run: |
-          cd go-autodoc
+          cd autodoc/go-autodoc
           mkdir -p bin
           OS_LIST=(linux darwin windows)
           ARCH_LIST=(amd64 arm64)
