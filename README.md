@@ -1,165 +1,162 @@
-# AutoDoc
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://example.com/build)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/your-repo/AutoDoc/releases)
 
-AutoDoc is a cross-platform, command-line tool that automatically generates up-to-date OpenAPI documentation from your Java codebase. By statically analyzing your source, it eliminates drift between code and docs, accelerates onboarding, and keeps large teams aligned.
-
----
+# AutoDoc Overview
 
 ## Table of Contents
 
-- [Features](#features)  
-- [Architecture](#architecture)  
-- [Prerequisites](#prerequisites)  
-- [Installation](#installation)  
-- [Usage](#usage)  
-- [Project Structure](#project-structure)  
-- [Extensibility](#extensibility)  
-- [Contributing](#contributing)  
-- [License](#license)  
+* [Introduction](#introduction)
+* [Goals](#goals)
+* [Prerequisites](#prerequisites)
+* [Installation](#installation)
+* [IR-First Workflow](#ir-first-workflow)
+* [CLI Usage & Flags](#cli-usage--flags)
+* [Quickstart Example](#quickstart-example)
+* [Links & Further Reading](#links--further-reading)
+* [Troubleshooting & FAQ](#troubleshooting--faq)
 
 ---
 
-## Features
+## Introduction
 
-- **Accurate, Up-to-Date Docs**: Static analysis via JavaParser keeps your OpenAPI spec in sync with code.  
-- **Faster Onboarding**: New team members get immediate, comprehensive API docs.  
-- **Team-Scale Clarity**: Large codebases stay documented without manual effort.  
-- **CI-Friendly**: Integrate into your build or pipeline to regenerate docs on every commit.  
-- **Extensible Outputs**: Out-of-the-box support for OpenAPI JSON, with hooks for Swagger UI, custom templates, dependency graphs, metrics, security scans, and more.  
+AutoDoc bridges the gap between evolving source code and up‑to‑date documentation by generating OpenAPI specs, Markdown tables, and Mermaid diagrams directly from your codebase. This IR‑first, two‑step process helps teams avoid drift, accelerates onboarding, and ensures your API docs always reflect the latest implementation.
 
----
+## Goals
 
-## Architecture
-
-AutoDoc is built as a two-tier system:
-
-1. **Java CLI Parser Tool**  
-   - Uses **JavaParser** for static AST analysis of models, controllers, and endpoints.  
-   - Marshals metadata into intermediate data classes (`ModelData`, `EndpointData`, etc.).  
-   - Builds an OpenAPI spec via `SchemaBuilder` and `OpenApiBuilder`, then serializes with Jackson.  
-
-2. **Go CLI Orchestrator**  
-   - A lightweight Go binary (`go-autodoc`) that invokes the Java parser JAR.  
-   - Captures the JSON output, writes it to disk (or further processes it).  
-   - Provides a simple, cross-platform wrapper for CI or local use.  
-
-**Design Principles**  
-- **Separation of Concerns**: Parsing and spec generation in Java; orchestration in Go.  
-- **Static Analysis**: No runtime reflection—everything derives directly from source.  
-- **Modularity & Extensibility**: Plug in new languages, output formats, or integrations.  
-- **Cross-Platform**: JVM + Go binaries run on any major OS.  
-
----
+* **Accuracy & Maintainability:** Keep parsing logic in language‑specific modules; centralize output rules in the Go CLI.
+* **Language‑Agnostic:** Swap in new parsers (Java, Kotlin, Python, etc.) without changing the CLI.
+* **Extensible Outputs:** Generate OpenAPI JSON/YAML, endpoint/model tables, diagrams, and more via pluggable generators.
+* **CI/CD Friendly:** Single `go-autodoc` binary can be called in any build pipeline.
 
 ## Prerequisites
 
-- **Java JDK** 11+  
-- **Maven**  
-- **Go** 1.24+  
-- **Bash** (for the build script)  
-
----
+* **Java JDK 11+** (for Java parser)
+* **Maven 3.6+** (to build the Java parser jar)
+* **Go 1.24+** (for the CLI)
+* **Bash** (or compatible shell)
 
 ## Installation
 
-### 1. Automated Build
-
-Make sure `build.sh` is executable, then run it to build both components in one step:
-
-```bash
-chmod +x build.sh
-./build.sh
-````
-
-This script will:
-
-1. Navigate into `java-parser` and run `mvn clean package`.
-2. Navigate into `go-autodoc` and run `go build -o bin/go-autodoc`.
-3. Echo the location of the Go executable.&#x20;
-
-### 2. Manual Build (Optional)
-
-If you prefer to build each component separately:
-
-1. **Build the Java Parser**
+1. Clone the repo:
 
    ```bash
-   cd java-parser
-   mvn clean package
-   cd ..
+   git clone https://github.com/your-repo/AutoDoc.git
+   cd AutoDoc
    ```
-2. **Build the Go Orchestrator**
+2. Build everything:
 
    ```bash
-   cd go-autodoc
-   go build -o go-autodoc
-   cd ..
+   chmod +x build.sh
+   ./build.sh
    ```
+3. Binaries produced:
 
----
+   * `java-parser/target/autodoc-1.0-SNAPSHOT.jar`
+   * `bin/go-autodoc`
 
-## Usage
+## IR-First Workflow
 
-After building, you can generate your OpenAPI spec in two ways:
+AutoDoc workflow splits into two clear steps:
 
-1. **Via the Go Orchestrator**
+1. **Parse & Emit IR**
 
    ```bash
-   ./go-autodoc <path/to/java/source> <path/to/output-dir>
-   # → Writes OpenAPI JSON to output-dir/output.json
+   java -jar java-parser/target/autodoc-1.0-SNAPSHOT.jar --source src/main/java > parsed.json
    ```
-2. **Directly with the Java JAR**
+2. **Consume IR & Generate Docs**
 
    ```bash
-   java -jar java-parser/target/autodoc-1.0-SNAPSHOT.jar <path/to/java/source> \
-     > openapi.json
+   go-autodoc \
+     --input parsed.json \
+     --info title="My API",version="1.0.0" \
+     --servers url="https://api.example.com" \
+     --tables endpoint-table,model-table \
+     --diagrams endpoint-map \
+     --output openapi.yaml
    ```
 
----
+### IR JSON Schema
 
-## Project Structure
-
-```
-.
-├── build.sh                      # Automated build script for Java & Go :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
-├── java-parser/
-│   ├── pom.xml
-│   └── src/main/java/com/autodoc/
-│       ├── AutodocApplication.java
-│       ├── generator/
-│       │   ├── JavaToOpenApiGenerator.java
-│       │   └── ...
-│       ├── model/
-│       │   ├── FieldData.java
-│       │   ├── ModelData.java
-│       │   └── EndpointData.java
-│       └── builder/
-│           ├── SchemaBuilder.java
-│           └── OpenApiBuilder.java
-└── go-autodoc/
-    ├── main.go
-    ├── parser/parser.go
-    ├── go.mod
-    └── bin/
-        └── go-autodoc            # Generated Go CLI
+```jsonc
+{
+  "models": [
+    {
+      "name": "User",
+      "description": "Data model for users",
+      "fields": [
+        {"name":"id","typeRef":{"base":"Long","args":[]},"required":true,"description":"Unique identifier"},
+        {"name":"email","typeRef":{"base":"String","args":[]},"required":true,"description":"User email address"}
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "path": "/users/{id}",
+      "method": "GET",
+      "summary": "Get user by ID",
+      "description": "Fetch a single user record",
+      "tags": ["User"],
+      "parameters":[{"name":"id","in":"path","required":true,"description":"User ID","type":{"base":"Long","args":[]}}],
+      "requestBodyType": null,
+      "responseType": {"base":"User","args":[]}
+    }
+  ]
+}
 ```
 
----
+## CLI Usage & Flags
 
-## Extensibility
+```text
+Usage:
+  go-autodoc [flags]
 
-* **New Languages**: Add a parser module (e.g., Kotlin, Python) alongside the Java parser.
-* **Additional Outputs**: Hook into the JSON output to generate Markdown, HTML, or custom formats.
-* **CI/CD Integration**: Automate doc regeneration in GitHub Actions, Jenkins, etc.
-* **Plugins**: Build annotation-based extensions for custom tags, examples, or security schemes.
+Flags:
+  -s, --source string        Path to source directory (required if --input omitted)
+  -i, --info strings         Metadata as key="value" pairs (e.g. title="My API",version="1.0.0")
+  -S, --servers strings      Server entries as url="...",description="..."
+  -l, --lang string          Parser language: java|kotlin|python (default "java")
+      --input string         Path to existing IR JSON (skips parsing)
+  -o, --output string        Output path for spec (default "openapi.yaml")
+      --tables strings       Comma-separated table generators (endpoint-table,model-table)
+      --diagrams strings     Comma-separated diagram generators (endpoint-map)
+  -h, --help                 Help for go-autodoc
+```
 
----
+## Quickstart Example
 
-## Contributing
+1. Add a simple controller:
 
-1. Fork the repo and checkout a feature branch.
-2. Write tests or sample code for your feature.
-3. Submit a pull request with a clear description & rationale.
-4. We’ll review and merge — thanks for helping improve AutoDoc!
+   ```java
+   @RestController
+   @RequestMapping("/hello")
+   public class HelloController {
+     @GetMapping
+     public String greet() { return "Hello, World!"; }
+   }
+   ```
+2. Generate docs:
+
+   ```bash
+   java -jar java-parser/target/autodoc-1.0-SNAPSHOT.jar --source src/main/java > parsed.json
+   go-autodoc --input parsed.json --info title="Hello API",version="0.1.0" --tables endpoint-table --output openapi.yaml
+   ```
+3. Inspect outputs:
+
+   * `openapi.yaml` contains your new `/hello` GET endpoint.
+   * `endpoint-table.md` lists the `GET /hello` route.
+
+## Links & Further Reading
+
+* **Deep Dive Architecture:** `docs/architecture.md`
+
+## Troubleshooting & FAQ
+
+**Q: I see no endpoints in the spec.**
+A: Verify your controllers are annotated with `@RestController` or have valid path mappings. Use `--lang` if not Java.
 
 
+**Q: Nested generics aren’t resolved.**
+A: The Java parser currently supports single-level generics. Contribute a fix in `ModelParser.java`.
 
+**Q: Can I skip IR generation?**
+A: Yes—use `--input parsed.json` to feed an existing IR file directly.
