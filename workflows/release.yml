@@ -1,0 +1,72 @@
+name: Release Go CLI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('java-parser/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Java parser JAR
+        working-directory: java-parser
+        run: |
+          mvn clean package -DskipTests
+          cp target/autodoc-${{ github.ref_name }}.jar ../go-autodoc/parser/parser.jar
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('go-autodoc/go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build Go binaries
+        run: |
+          cd go-autodoc
+          mkdir -p bin
+          OS_LIST=(linux darwin windows)
+          ARCH_LIST=(amd64 arm64)
+          for os in "${OS_LIST[@]}"; do
+            for arch in "${ARCH_LIST[@]}"; do
+              ext=""
+              if [[ "$os" == "windows" ]]; then ext=".exe"; fi
+              GOOS=$os GOARCH=$arch go build -ldflags "-X main.version=${{ github.ref_name }}" -o bin/go-autodoc-$os-$arch$ext
+            done
+          done
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: Auto-generated release for ${{ github.ref_name }}
+          files: go-autodoc/bin/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
