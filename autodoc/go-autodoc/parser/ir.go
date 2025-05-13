@@ -37,15 +37,18 @@ type TypeRefData struct {
 }
 
 type EndpointData struct {
-	Path            string       `json:"path"`
-	Method          string       `json:"method"`
-	Summary         string       `json:"summary"`
-	Description     string       `json:"description"`
-	Tags            []string     `json:"tags"`
-	Parameters      []Parameter  `json:"parameters"`
-	RequestBodyType *TypeRefData `json:"requestBodyType"`
-	ResponseType    TypeRefData  `json:"responseType"`
-	Deprecated      bool         `json:"deprecated"`
+	Path             string       `json:"path"`
+	Method           string       `json:"method"`
+	Summary          string       `json:"summary"`
+	Description      string       `json:"description"`
+	Tags             []string     `json:"tags"`
+	Parameters       []Parameter  `json:"parameters"`
+	RequestBodyType  *TypeRefData `json:"requestBodyType"`
+	ResponseType     TypeRefData  `json:"responseType"`
+	ControllerName   string       `json:"controllerName"`
+	ControllerPackage string      `json:"controllerPackage"`
+	Dependencies     []Dependency `json:"dependencies"`
+	Deprecated       bool         `json:"deprecated"`
 }
 
 type Parameter struct {
@@ -54,4 +57,10 @@ type Parameter struct {
 	Required    bool        `json:"required"`
 	Description string      `json:"description"`
 	TypeRef     TypeRefData `json:"type"`
+}
+
+type Dependency struct {
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	InjectionType string `json:"injectionType"`
 }

@@ -1,10 +1,17 @@
 package com.autodoc.parser;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import com.autodoc.model.DependencyData;
 import com.autodoc.model.EndpointData;
 import com.autodoc.model.ParameterData;
 import com.autodoc.model.TypeRefData;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.ConstructorDeclaration;
+import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.AnnotationExpr;
@@ -14,13 +21,15 @@ import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
 public class ControllerParser {
     private static final List<String> MAPPINGS = List.of(
             "GetMapping", "PostMapping", "PutMapping", "DeleteMapping", "PatchMapping", "RequestMapping");
+    
+    private static final List<String> DEPENDENCY_ANNOTATIONS = List.of(
+            "Autowired", "Inject", "Resource", "Value");
+            
+    private static final List<String> SERVICE_SUFFIXES = List.of(
+            "Service", "Manager", "Processor", "Handler", "Delegate", "Provider", "Helper");
 
     public void parseControllerClasses(CompilationUnit cu, ParsedProject parsed) {
         for (ClassOrInterfaceDeclaration cls : cu.findAll(ClassOrInterfaceDeclaration.class)) {
@@ -34,6 +43,15 @@ public class ControllerParser {
             if (cls.isAnnotationPresent("RequestMapping")) {
                 basePath = extractPath(cls.getAnnotationByName("RequestMapping").get());
             }
+            
+            // Extract controller name and package
+            String controllerName = cls.getNameAsString();
+            String controllerPackage = cu.getPackageDeclaration()
+                    .map(pd -> pd.getNameAsString())
+                    .orElse("");
+                    
+            // Extract service dependencies
+            List<DependencyData> dependencies = extractDependencies(cls);
 
             for (MethodDeclaration m : cls.getMethods()) {
                 Optional<AnnotationExpr> map = m.getAnnotations().stream()
@@ -93,10 +111,77 @@ public class ControllerParser {
                 ep.setParameters(params);
                 ep.setRequestBodyType(requestBodyType);
                 ep.setResponseType(responseType);
+                ep.setControllerName(controllerName);
+                ep.setControllerPackage(controllerPackage);
+                ep.setDependencies(dependencies);
 
                 parsed.addEndpoint(ep);
             }
         }
+    }
+    
+    private List<DependencyData> extractDependencies(ClassOrInterfaceDeclaration cls) {
+        List<DependencyData> dependencies = new ArrayList<>();
+        
+        // Check fields with @Autowired, @Inject, etc.
+        for (FieldDeclaration field : cls.getFields()) {
+            boolean isDependency = field.getAnnotations().stream()
+                    .anyMatch(a -> DEPENDENCY_ANNOTATIONS.contains(a.getNameAsString()));
+                    
+            if (isDependency || isLikelyServiceField(field)) {
+                for (var variable : field.getVariables()) {
+                    Type type = variable.getType();
+                    if (type.isClassOrInterfaceType()) {
+                        ClassOrInterfaceType classType = type.asClassOrInterfaceType();
+                        String typeName = classType.getNameAsString();
+                        String fieldName = variable.getNameAsString();
+                        
+                        DependencyData dependency = new DependencyData();
+                        dependency.setName(fieldName);
+                        dependency.setType(typeName);
+                        dependency.setInjectionType("field");
+                        dependencies.add(dependency);
+                    }
+                }
+            }
+        }
+        
+        // Check constructor injection
+        for (ConstructorDeclaration constructor : cls.getConstructors()) {
+            // Most likely the injection constructor if it has parameters
+            if (constructor.getParameters().size() > 0) {
+                for (Parameter param : constructor.getParameters()) {
+                    Type type = param.getType();
+                    if (type.isClassOrInterfaceType()) {
+                        ClassOrInterfaceType classType = type.asClassOrInterfaceType();
+                        String typeName = classType.getNameAsString();
+                        String paramName = param.getNameAsString();
+                        
+                        if (isLikelyService(typeName) || isLikelyService(paramName)) {
+                            DependencyData dependency = new DependencyData();
+                            dependency.setName(paramName);
+                            dependency.setType(typeName);
+                            dependency.setInjectionType("constructor");
+                            dependencies.add(dependency);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return dependencies;
+    }
+    
+    private boolean isLikelyServiceField(FieldDeclaration field) {
+        // Check if field type or name suggests it's a service
+        return field.getVariables().stream().anyMatch(v -> 
+            isLikelyService(v.getType().asString()) || isLikelyService(v.getNameAsString()));
+    }
+    
+    private boolean isLikelyService(String name) {
+        String lowercaseName = name.toLowerCase();
+        return SERVICE_SUFFIXES.stream().anyMatch(suffix -> 
+            name.endsWith(suffix) || lowercaseName.contains("service") || lowercaseName.contains("repository"));
     }
 
     private String extractPath(AnnotationExpr a) {

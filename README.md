@@ -137,7 +137,6 @@ Flags:
 2. Generate docs:
 
    ```bash
-   java -jar java-parser/target/autodoc-1.0-SNAPSHOT.jar --source src/main/java > parsed.json
    go-autodoc --input parsed.json --info title="Hello API",version="0.1.0" --tables endpoint-table --output openapi.yaml
    ```
 3. Inspect outputs:

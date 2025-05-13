@@ -44,7 +44,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "openapi.yaml", "Output spec file path")
 	rootCmd.PersistentFlags().StringVarP(&lang, "lang", "l", "java", "Language parser to use (java|kotlin|python)")
 	rootCmd.PersistentFlags().StringVar(&tables, "tables", "", "Comma-separated tables to generate (e.g., endpoint-table)")
-	rootCmd.PersistentFlags().StringVar(&diagrams, "diagrams", "", "Comma-separated diagrams to generate (e.g., endpoint-map)")
+	rootCmd.PersistentFlags().StringVar(&diagrams, "diagrams", "", "Comma-separated diagrams to generate (e.g., endpoint-map,model-table,controller-service)")
 
 	// Mark required flags
 	rootCmd.MarkPersistentFlagRequired("source")
@@ -96,6 +96,12 @@ func runGenerate() error {
 					return fmt.Errorf("endpoint-table generation failed: %w", err)
 				}
 				fmt.Println("Table generated:", path)
+			case "controller-service":
+				path := filepath.Join(baseDir, "controller-service.mmd")
+				if err := generator.GenerateControllerServiceFlowchart(ir, path); err != nil {
+					return fmt.Errorf("controller-service graph generation failed: %w", err)
+				}
+				fmt.Println("Diagram generated:", path)
 			case "model-table":
 				path := filepath.Join(baseDir, "model-table.md")
 				if err := generator.GenerateModelTable(ir, path); err != nil {
