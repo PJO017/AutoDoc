@@ -66,13 +66,16 @@ public class ControllerParser {
                 String summary = extractOperationMember(m, "summary");
                 String description = extractOperationMember(m, "description");
 
-                // Tags from @Tag on class
+                // Tags - use the controller's package in this case
                 List<String> tags = new ArrayList<>();
-                cls.getAnnotationByName("Tag")
-                        .flatMap(a -> a instanceof SingleMemberAnnotationExpr
-                                ? Optional.of(((SingleMemberAnnotationExpr) a).getMemberValue().toString())
-                                : Optional.empty())
-                        .ifPresent(tags::add);
+                if (!controllerName.isEmpty()) {
+                    // Use controller name without "Controller" suffix if present
+                    String tag = controllerName;
+                    if (tag.endsWith("Controller")) {
+                        tag = tag.substring(0, tag.length() - "Controller".length());
+                    }
+                    tags.add(tag);
+                }
 
                 // Parameters
                 List<ParameterData> params = new ArrayList<>();
@@ -80,14 +83,33 @@ public class ControllerParser {
                     if (p.isAnnotationPresent("PathVariable")) {
                         params.add(buildParam(p, "path", true));
                     } else if (p.isAnnotationPresent("RequestParam")) {
-                        boolean req = p.getAnnotationByName("RequestParam")
-                                .map(a -> ((NormalAnnotationExpr) a).getPairs().stream()
+                        // FIX: Properly handle all annotation types for RequestParam
+                        boolean req = true; // Default is true for Spring's @RequestParam
+                        
+                        Optional<AnnotationExpr> requestParamAnnotation = p.getAnnotationByName("RequestParam");
+                        if (requestParamAnnotation.isPresent()) {
+                            AnnotationExpr annotationExpr = requestParamAnnotation.get();
+                            
+                            if (annotationExpr instanceof NormalAnnotationExpr) {
+                                // If it has named parameters like @RequestParam(required = false)
+                                req = ((NormalAnnotationExpr) annotationExpr).getPairs().stream()
                                         .filter(pv -> pv.getNameAsString().equals("required"))
                                         .map(MemberValuePair::getValue)
                                         .findFirst()
-                                        .map(v -> v.asBooleanLiteralExpr().getValue())
-                                        .orElse(false))
-                                .orElse(false);
+                                        .map(v -> {
+                                            try {
+                                                return v.asBooleanLiteralExpr().getValue();
+                                            } catch (Exception e) {
+                                                // In case it's not a boolean literal
+                                                return true;
+                                            }
+                                        })
+                                        .orElse(true);
+                            }
+                            // If it's a MarkerAnnotationExpr like @RequestParam, required is true
+                            // If it's a SingleMemberAnnotationExpr like @RequestParam("id"), required is true
+                        }
+                        
                         params.add(buildParam(p, "query", req));
                     }
                 }
@@ -195,6 +217,7 @@ public class ControllerParser {
                 }
             }
         }
+        // MarkerAnnotationExpr has no path
         return "";
     }
 

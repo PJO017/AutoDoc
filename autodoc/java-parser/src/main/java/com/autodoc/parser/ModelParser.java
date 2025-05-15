@@ -529,8 +529,11 @@ public class ModelParser {
 
         // Heuristic: Assume classes in these packages are models/DTOs
         return packageName.contains("model") ||
+                packageName.contains("models") ||
                 packageName.contains("dto") ||
+                packageName.contains("dtos") ||
                 packageName.contains("entity") ||
+                packageName.contains("entities") ||
                 packageName.contains("domain");
     }
 }
