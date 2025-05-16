@@ -12,6 +12,11 @@
     <maven.compiler.target>23</maven.compiler.target>
   </properties>
   <dependencies>
+  <dependency>
+    <groupId>fr.inria.gforge.spoon</groupId>
+    <artifactId>spoon-core</artifactId>
+    <version>10.3.0</version>
+</dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -64,6 +69,16 @@
                     <mainClass>com.autodoc.AutodocApplication</mainClass>
                   </transformer>
                 </transformers>
+                 <filters>
+                            <filter>
+                                <artifact>*:*</artifact>
+                                <excludes>
+                                    <exclude>META-INF/*.SF</exclude>
+                                    <exclude>META-INF/*.DSA</exclude>
+                                    <exclude>META-INF/*.RSA</exclude>
+                                </excludes>
+                            </filter>
+                        </filters>
             </configuration>
         </plugin>
     </plugins>
