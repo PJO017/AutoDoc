@@ -1,4 +1,4 @@
-package com.autodoc.parser;
+package com.autodoc.processor;
 
 import com.autodoc.model.*;
 import spoon.reflect.CtModel;
@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class SpoonModelProcessor {
+public class ModelProcessor {
 
     public void processModels(CtModel model, ParsedProject parsedProject) {
         // Find all classes in the model

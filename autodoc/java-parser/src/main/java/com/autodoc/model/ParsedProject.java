@@ -1,7 +1,5 @@
-package com.autodoc.parser;
+package com.autodoc.model;
 
-import com.autodoc.model.EndpointData;
-import com.autodoc.model.ModelData;
 import java.util.ArrayList;
 import java.util.List;
 

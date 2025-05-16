@@ -73,7 +73,7 @@
             <!-- this writes Main-Class into META-INF/MANIFEST.MF -->
             <transformer
               implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-              <mainClass>com.autodoc.parser.SpoonParser</mainClass>
+              <mainClass>com.autodoc.Parser</mainClass>
             </transformer>
           </transformers>
           <filters>

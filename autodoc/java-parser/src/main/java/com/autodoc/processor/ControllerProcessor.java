@@ -1,4 +1,4 @@
-package com.autodoc.parser;
+package com.autodoc.processor;
 
 
 import com.autodoc.model.*;
@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-public class SpoonControllerProcessor {
+public class ControllerProcessor {
 
     private static final List<String> MAPPINGS = Arrays.asList(
             "GetMapping", "PostMapping", "PutMapping", "DeleteMapping", "PatchMapping", "RequestMapping");
